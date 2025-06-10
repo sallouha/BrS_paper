@@ -1,0 +1,510 @@
+---
+title: "Foldchange"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+params:
+  analysis: One time point
+  control: "60000"
+  experiments: "24451,16099,26562,7254,26557,35488,25402,12781,14767,41718,13980,35607,4818,22469,30868,36028,36286,38084,6131,2629,34034"  
+
+---
+# Initiation
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(readxl)
+library(ggpubr)
+library(ggsignif)
+library(rstudioapi)
+library(data.table)
+library(stringr)
+library(lubridate)
+library(grid)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+library(WRS2)
+library(svDialogs)
+library(kableExtra)
+library(xlsx)
+library(rstatix)
+
+```
+
+```{r data setup, include=TRUE}
+  
+##GET THE ORIGINAL FILES
+rawdata_folder <- selectDirectory(caption="Select Folder with rawdata files", label = "rawdata files")
+setwd(rawdata_folder)
+
+# Reading raw data
+filelist <- NULL
+filelist$csv <- list.files(".", pattern = "\\.csv$", recursive = TRUE)
+total <- length(filelist$csv)
+if(total == 0) stop("THERE IS NO CSV FILES IN THE CURRENT LOCATION.")
+
+# Combining data from xlsx files
+datalist <- list()
+for(f in 1:total){
+  # Loading each file in a different data frame
+  dataframe <- read.csv(filelist$csv[f])
+  datalist[[f]] <- dataframe
+}
+all_data <- rbindlist(datalist)
+
+age_list <- unique(all_data$Age)
+date_list <- unique(all_data$cxd_date)
+condition_list <- unique(all_data$CODE)
+
+
+# Adding the replicate number for each age/genotype - will be used for the batch effect removal
+cxd_files <- unlist(all_data$cxd_file)
+all_data <- all_data[, cxd_date:=as.Date(mdy(str_extract(cxd_files, "[:digit:]{6}"))),]
+#the first date is replicate 1, second replicate 2 and third replicate 3
+
+##DATA SELECTION
+all_data_good_parameters <- all_data %>% select(all_of(c("CODE", "type","fly_gene", "Age", "EDD", "ESD", "FS", "HP_median", "DI_median", "relaxtime", "SI_median", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")))
+all_data_good_parameters$AgeFactor <- factor(all_data_good_parameters$Age)
+
+```
+
+```{r outlier treatment, include=FALSE}
+
+##OUTLIER TREATMENT
+for(age in age_list){
+  for(condition in condition_list){
+    outlier_val <- boxplot.stats(all_data_good_parameters$EDD[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$EDD[all_data_good_parameters$EDD == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$ESD[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$ESD[all_data_good_parameters$ESD == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$FS[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$FS[all_data_good_parameters$FS == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$tt10r_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$tt10r_median[all_data_good_parameters$tt10r_median == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_tt10r[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$MAD_tt10r[all_data_good_parameters$MAD_tt10r == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$SV[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$SV[all_data_good_parameters$SV == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$CO[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$CO[all_data_good_parameters$CO == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$peaked_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$peaked_median[all_data_good_parameters$peaked_median == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$min.velocity[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$min.velocity[all_data_good_parameters$min.velocity == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$max.velocity[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$max.velocity[all_data_good_parameters$max.velocity == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_SI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$MAD_SI[all_data_good_parameters$MAD_SI == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_DI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$MAD_DI[all_data_good_parameters$MAD_DI == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_HP[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$MAD_HP[all_data_good_parameters$MAD_HP == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$HR[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$HR[all_data_good_parameters$HR == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$HP_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$HP_median[all_data_good_parameters$HP_median == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$DI_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$DI_median[all_data_good_parameters$DI_median == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$relaxtime[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$relaxtime[all_data_good_parameters$relaxtime == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$SI_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$SI_median[all_data_good_parameters$SI_median == outlier_val] <- NA}
+    outlier_val <- boxplot.stats(all_data_good_parameters$AI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
+    if(length(outlier_val)!=0){
+      all_data_good_parameters$AI[all_data_good_parameters$AI == outlier_val] <- NA}
+    }
+  }
+```
+
+```{r plot function, include=FALSE}
+##FORMATTING DATASET
+experiments <- unlist(str_split(params$experiments, pattern = ","))
+
+data_format <- function(param){
+  temp_data1 <- all_data_good_parameters %>% select(all_of(c("CODE", "AgeFactor", param))) %>% filter(CODE %in% c(params$control, experiments)) %>% mutate(type=paste(param))
+  colnames(temp_data1) <- c("CODE", "age", "parameter", "type")
+  dataframe_formatted <- temp_data1
+  if(param == "EDD"){
+    temp_data2 <- all_data_good_parameters %>% select(all_of(c("CODE", "AgeFactor", "ESD"))) %>% filter(CODE %in% c(params$control, experiments)) %>% mutate(type="ESD")
+    colnames(temp_data2) <- c("CODE", "age", "parameter", "type")
+    dataframe_formatted <- rbind(temp_data1,temp_data2)
+  }
+  if(param == "SI_median"){
+    temp_data2 <- all_data_good_parameters %>% select(all_of(c("CODE", "AgeFactor", "DI_median"))) %>% filter(CODE %in% c(params$control, experiments)) %>% mutate(type="DI_median")
+    colnames(temp_data2) <- c("CODE", "age", "parameter", "type")
+    dataframe_formatted <- rbind(temp_data1,temp_data2)
+  }
+  if(param == "MAD_SI"){
+    temp_data2 <- all_data_good_parameters %>% select(all_of(c("CODE", "AgeFactor", "MAD_DI"))) %>% filter(CODE %in% c(params$control, experiments)) %>% mutate(type="MAD_DI")
+    colnames(temp_data2) <- c("CODE", "age", "parameter", "type")
+    dataframe_formatted <- rbind(temp_data1,temp_data2)
+  }
+  return(dataframe_formatted)
+}
+
+##PLOTS FORMATS
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+# Y label definition
+ylabel_def <- function(parameter){
+  ylab <- ""
+  if (parameter %in% c("EDD","ESD")) {ylab <- "Diameter (um)"}
+  if (parameter == "HR") {ylab <- "Heart Rate (Hz)"}
+  if (parameter %in% c("HP_median", "DI_median", "relaxtime", "SI_median", "peaked_median", "tt10r_median")) {ylab <- "Time (s)"}
+  if (parameter == "SV") {ylab <- "Stroke Volume (pL)"}
+  if (parameter == "CO") {ylab <- "Cardiac Output (pL/s)"}
+  return(ylab)
+}
+# Y limit definition
+ylimit_def <- function(parameter){
+  ylimit <- c(0,NA)
+  if(parameter=="min.velocity"){ylimit<-c(NA,0)}
+  return(ylimit)
+}
+
+```
+
+```{r Full analysis, echo=TRUE}
+
+# Significance Indice conversion
+SignificanceIndice <- function(x) {
+  ifelse(x < 0.0001, paste0("****"),
+         ifelse(x < 0.005, paste0("***"),
+                ifelse(x < 0.01, paste0("**"),
+                       ifelse(x < 0.05, paste0("*"),
+                              paste0("NS")))))
+}
+
+# Create an empty dataframe to store fold change values
+fold_change_df <- data.frame(Parameter = character(),
+                            Control = numeric(),
+                            fly_gene = character(),
+                            Experiment = character(),
+                            Wilcoxon_pvalue = numeric(),
+                            Adjusted_pvalue = numeric(),
+                            Significance_Index = character(),
+                            Fold_Change = numeric(),
+                            Direction = character(),
+                            stringsAsFactors = FALSE)
+
+# Define the parameters to test
+parameter_list <- c("EDD", "ESD", "FS", "HP_median", "SI_median", "DI_median", "relaxtime", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")
+
+# Convert experiment IDs to a character vector
+experiments <- unlist(strsplit(params$experiments, ","))
+
+# Loop through each parameter in the parameter list
+for (i in seq_along(parameter_list)) {
+  parameter <- parameter_list[i]
+
+  # Subset the dataset_1 for the current parameter
+  dataset_1 <- all_data_good_parameters %>%
+    select(CODE, fly_gene, AgeFactor, !!as.symbol(parameter)) %>%
+    filter(CODE %in% c(params$control, experiments)) %>%
+    mutate(Parameter = parameter)
+  colnames(dataset_1) <- c("CODE", "fly_gene", "age", "value", "Parameter")
+
+  # Calculate mean for control
+  control_mean <- mean(dataset_1$value[dataset_1$CODE == params$control], na.rm = TRUE)
+
+  # Loop through each experiment
+for (j in seq_along(experiments)) {
+    experiment <- experiments[j]
+
+    # Subset the dataset_1 for the current experiment
+    experiment_data <- dataset_1[dataset_1$CODE %in% c(params$control, experiment), ]
+
+    # Perform Kruskal-Wallis test
+    test_result <- kruskal.test(value ~ CODE, data = experiment_data)
+    p_value <- test_result$p.value
+
+    # Store the fold change value in the fold_change_df dataframe
+    fold_change_df <- rbind(fold_change_df, data.frame(Parameter = parameter,
+                                                       Control = control_mean,
+                                                       fly_gene = experiment_data$fly_gene[1],
+                                                       experiment = experiment,
+                                                       Kruskal_pvalue = p_value,
+                                                       Adjusted_pvalue = NA,
+                                                       Significance_Index = NA,
+                                                       Fold_Change = NA,
+                                                       Direction = NA,
+                                                       stringsAsFactors = FALSE))
+    }
+
+
+
+  # Apply Bonferroni adjustment to all p-values for the current parameter
+  fold_change_df$Adjusted_pvalue[fold_change_df$Parameter == parameter] <- p.adjust(fold_change_df$Kruskal_pvalue[fold_change_df$Parameter == parameter], method = "bonferroni")
+
+  # Update the significance indices based on adjusted p-values
+  fold_change_df$Significance_Index[fold_change_df$Parameter == parameter] <- SignificanceIndice(fold_change_df$Adjusted_pvalue[fold_change_df$Parameter == parameter])
+
+  # Loop through each experiment again to calculate fold change and direction based on adjusted p-value
+  for (j in seq_along(experiments)) {
+    experiment <- experiments[j]
+
+    # Subset the fold_change_df for the current experiment
+    experiment_data <- fold_change_df[fold_change_df$Parameter == parameter & fold_change_df$experiment == experiment, ]
+
+    # Calculate fold change only if adjusted p-value is <= 0.05
+    if (experiment_data$Adjusted_pvalue <= 0.05) {
+      # Calculate mean expression level for the experiment
+      experiment_mean <- mean(dataset_1$value[dataset_1$CODE == experiment], na.rm = TRUE)
+
+      fold_change <- experiment_mean / control_mean
+      direction <- ifelse(fold_change > 1, "Enhanced phenotype", "Reduced phenotype")
+    } else {
+      fold_change <- 0
+      direction <- "No change"
+    }
+
+    # Update the fold_change_df with the calculated fold change and direction
+    fold_change_df$Fold_Change[fold_change_df$Parameter == parameter & fold_change_df$experiment == experiment] <- fold_change
+    fold_change_df$Direction[fold_change_df$Parameter == parameter & fold_change_df$experiment == experiment] <- direction
+  }
+}
+
+# Set control value for all rows in the fold_change_df dataframe
+fold_change_df$Control <- params$control
+
+# Remove duplicates based on Parameter and Experiment columns
+fold_change_df <- fold_change_df[!duplicated(fold_change_df[c("Parameter", "experiment")]), ]
+
+# Write the fold change dataframe to Excel
+write.xlsx(fold_change_df, "fold_change_table_adjusted.xlsx")
+
+# Display the fold change dataframe
+kbl(fold_change_df) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+```
+
+```{r Full analysis, echo=TRUE}
+
+# Create an empty dataframe to store fold change values
+fold_change_all_df <- data.frame(Parameter = character(),
+                            Control = numeric(),
+                            fly_gene = character(),
+                            Experiment = character(),
+                            Wilcoxon_pvalue = numeric(),
+                            Adjusted_pvalue = numeric(),
+                            Significance_Index = character(),
+                            Fold_Change = numeric(),
+                            stringsAsFactors = FALSE)
+
+# Define the parameters to test
+parameter_list <- c("EDD", "ESD", "FS", "HP_median", "SI_median", "DI_median", "relaxtime", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")
+
+# Convert experiment IDs to a character vector
+experiments <- unlist(strsplit(params$experiments, ","))
+
+# Loop through each parameter in the parameter list
+for (i in seq_along(parameter_list)) {
+  parameter <- parameter_list[i]
+
+  # Subset the dataset_1 for the current parameter
+  dataset_1 <- all_data_good_parameters %>%
+    select(CODE, fly_gene, AgeFactor, !!as.symbol(parameter)) %>%
+    filter(CODE %in% c(params$control, experiments)) %>%
+    mutate(Parameter = parameter)
+  colnames(dataset_1) <- c("CODE", "fly_gene", "age", "value", "Parameter")
+
+  # Calculate mean for control
+  control_mean <- mean(dataset_1$value[dataset_1$CODE == params$control], na.rm = TRUE)
+
+  # Loop through each experiment
+  for (j in seq_along(experiments)) {
+    experiment <- experiments[j]
+
+    # Subset the dataset_1 for the current experiment
+    experiment_data <- dataset_1[dataset_1$CODE %in% c(params$control, experiment), ]
+
+    # Perform Kruskal-Wallis test
+    test_result <- kruskal.test(value ~ CODE, data = experiment_data)
+    p_value <- test_result$p.value
+
+    # Store the fold change value in the fold_change_all_df dataframe
+    fold_change_all_df <- rbind(fold_change_all_df, data.frame(Parameter = parameter,
+                                                       Control = control_mean,
+                                                       fly_gene = experiment_data$fly_gene[1],
+                                                       experiment = experiment,
+                                                       Kruskal_pvalue = p_value,
+                                                       Adjusted_pvalue = NA,
+                                                       Significance_Index = NA,
+                                                       Fold_Change = NA,
+                                                       stringsAsFactors = FALSE))
+  }
+  # Apply Bonferroni adjustment to all p-values for the current parameter
+  fold_change_all_df$Adjusted_pvalue[fold_change_all_df$Parameter == parameter] <- p.adjust(fold_change_all_df$Kruskal_pvalue[fold_change_all_df$Parameter == parameter], method = "bonferroni")
+
+  # Update the significance indices based on adjusted p-values
+  fold_change_all_df$Significance_Index[fold_change_all_df$Parameter == parameter] <- SignificanceIndice(fold_change_all_df$Adjusted_pvalue[fold_change_all_df$Parameter == parameter])
+
+  # Loop through each experiment again to calculate fold change and direction based on adjusted p-value
+  for (j in seq_along(experiments)) {
+    experiment <- experiments[j]
+
+    # Subset the fold_change_all_df for the current experiment
+    experiment_data <- fold_change_all_df[fold_change_all_df$Parameter == parameter & fold_change_all_df$experiment == experiment, ]
+
+    # Calculate mean expression level for the experiment
+    experiment_mean <- mean(dataset_1$value[dataset_1$CODE == experiment], na.rm = TRUE)
+    # Calculate mean expression level for the control
+    control_mean <- mean(dataset_1$value[dataset_1$CODE == params$control], na.rm = TRUE)
+
+    fold_change <- experiment_mean / control_mean
+    direction <- ifelse(fold_change > 1, "Enhanced phenotype", "Reduced phenotype")
+
+    # Update the fold_change_all_df with the calculated fold change and direction
+    fold_change_all_df$Fold_Change[fold_change_all_df$Parameter == parameter & fold_change_all_df$experiment == experiment] <- fold_change
+  }
+}
+
+
+# Set control value for all rows in the fold_change_all_df dataframe
+fold_change_all_df$Control <- params$control
+
+# Remove duplicates based on Parameter and Experiment columns
+fold_change_all_df <- fold_change_all_df[!duplicated(fold_change_all_df[c("Parameter", "experiment")]), ]
+
+# Write the fold change dataframe to Excel
+write.xlsx(fold_change_all_df, "all_fold_change_table_adjusted.xlsx")
+
+# Display the fold change dataframe
+kbl(fold_change_all_df) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+
+  # Create an empty dataframe to store the results
+  adapted_dataframe <- data.frame(fly_gene = character(), CODE = numeric(), Significance_Index = character(), stringsAsFactors = FALSE)
+
+  # Loop through each parameter in the parameter list
+  for (parameter in parameter_list) {
+  # Subset the fold_change_all_df for the current parameter
+  parameter_data <- fold_change_all_df[fold_change_all_df$Parameter == parameter, ]
+  
+  # Extract adjusted p-values and fold change
+  pvalues <- parameter_data$Adjusted_pvalue
+  fold_changes <- parameter_data$Fold_Change
+  Significance_Index <- parameter_data$Significance_Index
+  
+  # Create column names
+  col_names <- c(paste0(parameter), paste0("Significance_Index_", parameter), paste0("fold_change_", parameter))
+  
+  # Combine adjusted p-values, fold changes and Significance_Index into a matrix
+  parameter_matrix <- cbind(pvalues,  Significance_Index, fold_changes)
+  
+  # Create a data frame for the current parameter
+  parameter_df <- as.data.frame(parameter_matrix)
+  colnames(parameter_df) <- col_names
+  
+  # Add the fly_gene and CODE columns to the parameter dataframe
+  parameter_df$fly_gene <- parameter_data$fly_gene
+  parameter_df$CODE <- parameter_data$experiment
+  
+  
+  # Combine the data frame for the current parameter with the adapted_dataframe
+  adapted_dataframe <- merge(adapted_dataframe, parameter_df, by = c("fly_gene", "CODE"), all = TRUE)
+}
+
+  # Write the adapted dataframe to Excel
+  write.xlsx(adapted_dataframe, "all_fold_change_table_adjusted.xlsx")
+
+
+```
+
+
+```{r HEATMAP, echo=TRUE}
+
+# Declare the working directory
+WORKING_DIR <- "C:/Users/krifa/Desktop/Analyse/Droso_Brs/Nantes Validations_Second_contrat/Normalization_v1/scaled by date/GD/1WF"
+setwd(WORKING_DIR)
+
+# Declare the input files
+fold_change_df <- read_excel(file.path(WORKING_DIR, "GD_1wf_fold_change_table_adjusted.xlsx"))
+
+# Set order of parameters as in the data frame
+param_order <- unique(fold_change_df$Parameter)
+
+# Specify the order of genes on the y-axis
+gene_order <- c("Eb1", "yip2","CG10932","Tengl2","CG1074","Myd88","plc21c","mtd","CCAP-R","fray","Est-6","Jhedup","arr", "Est-P","Rnf146","CG6931", "para", "EndoG","Arr", "Fhos","Pgant5")
+
+
+# Convert Parameter column to a factor with desired order
+fold_change_df$Parameter <- factor(fold_change_df$Parameter, levels = param_order)
+fold_change_df$experiment <- factor(fold_change_df$experiment)
+
+# Specify the order of genes on the y-axis
+fold_change_df$fly_gene <- factor(fold_change_df$fly_gene, levels = gene_order)
+
+# Sort the data by experiment and fly_gene columns
+fold_change_df <- fold_change_df[order(fold_change_df$experiment, fold_change_df$fly_gene), ]
+
+
+fold_change_df$Significance_Index <- factor(
+  fold_change_df$Significance_Index,
+  levels = c("NS", "*", "**", "***", "****")
+)
+
+
+# Create the combined plot with both fold_change_scale_low and fold_change_scale_high
+plot1 <- ggplot(fold_change_df, aes(x = Parameter, y = fly_gene)) +
+  geom_tile(aes(fill = Direction, alpha = Significance_Index), color = "black") +
+  scale_fill_manual(values = c("No change" = "white", "Reduced phenotype" = "deepskyblue1", "Enhanced phenotype" = "darkorange1"), 
+                    name = "Fold Change") +
+  scale_alpha_manual(values = c("NS" = 0, "*" = 0.25, "**" = 0.5, "***" = 0.75, "****" = 1), 
+                     name = "Significance Index",
+                     labels = c("Not significant", "p < 0.05", "p < 0.01", "p < 0.005", "p < 0.0001")) + # Labels for significance levels
+  labs(x = NULL, y = NULL, title = "Normalized_data_bydate_VDRC_GD_1WF_KO_effect") +
+  theme_bw() +
+  theme(
+    axis.ticks = element_line(),
+    axis.ticks.length = unit(0.1, "cm"),  # Set the length of ticks on the right side
+    axis.ticks.margin = unit(0.1, "cm"),  # Set the margin of ticks on the right side
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "white"),  # Set background color to white
+    plot.title = element_text(color = "black", size = 13, hjust = 0),
+    axis.text.x = element_text(angle = 90, size = 8, hjust = 1, vjust = 0.5),
+    axis.text.y = element_text(size = 8, hjust = 1, vjust = 0.5)
+  ) +
+  coord_equal() +
+  scale_y_discrete()  # Using discrete scale for gene names
+
+
+
+# Print the combined plot
+print(plot1)
+
+# Save the heatmap with labels on the right and left side
+ggsave("all_heatmap_1wf___.png", plot = plot1, width = 8, height = 4)
+
+
+
+```
+
+
+

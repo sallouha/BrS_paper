@@ -1,0 +1,105 @@
+---
+title: "standarisation"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+params:
+  analysis: One time point
+  control: "60100"
+  experiments: "101695,102995,106350,106919" 
+---
+# Initiation
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#NB A CHANGER :
+library(dplyr)
+library(readxl)
+library(ggpubr)
+library(ggsignif)
+library(rstudioapi)
+library(data.table)
+library(stringr)
+library(lubridate)
+library(grid)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+library(WRS2)
+library(svDialogs)
+library(kableExtra)
+library(xlsx)
+library(rstatix)
+
+```
+
+
+```{r data setup, include=TRUE}
+##GET THE ORIGINAL FILES
+rawdata_folder <- selectDirectory(caption="Select Folder with rawdata files", label = "rawdata files")
+setwd(rawdata_folder)
+
+# Reading raw data
+filelist <- NULL
+filelist$csv <- list.files(".", pattern = "\\.csv$", recursive = TRUE)
+total <- length(filelist$csv)
+if(total == 0) stop("THERE IS NO CSV FILES IN THE CURRENT LOCATION.")
+
+# Combining data from xlsx files
+datalist <- list()
+for(f in 1:total){
+  # Loading each file in a different data frame
+  dataframe <- read.csv(filelist$csv[f])
+  datalist[[f]] <- dataframe
+}
+all_data <- rbindlist(datalist)
+
+age_list <- unique(all_data$Age)
+date_list <- unique(all_data$cxd_date)
+condition_list <- unique(all_data$CODE)
+
+
+# Adding the replicate number for each age/genotype - will be used for the batch effect removal
+cxd_files <- unlist(all_data$cxd_file)
+all_data <- all_data[, cxd_date:=as.Date(mdy(str_extract(cxd_files, "[:digit:]{6}"))),]
+#the first date is replicate 1, second replicate 2 and third replicate 3
+
+
+#List of parameters to test 
+parameters <- c("EDD", "ESD", "FS", "HP_median", "DI_median", "relaxtime", "SI_median", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")
+
+
+
+ control <- all_data %>%
+  filter(CODE %in% condition_list, CODE == "60100")
+
+ experiments <- all_data %>%
+  filter(CODE %in% c("101505","101903","108134"))
+
+control_mean <- apply(select(control, all_of(parameters)), 2, mean, na.rm = TRUE)
+
+
+for (param in parameters) {
+  param_data <- experiments[[param]]
+  if (param %in% colnames(control)) {
+    control_param_data <- control[[param]]
+    scaled_param <- param_data  / control_mean[param]
+    scaled_param_control <- control_param_data / control_mean[param]
+    experiments[[param]] <- as.vector(scaled_param)
+    control[[param]] <- as.vector(scaled_param_control)
+  }
+}
+
+scaled_data <- rbind(control, experiments)
+
+# Write the scaled data to a new CSV file
+write.csv(scaled_data, file = "scaled_data.csv", row.names = FALSE)
+
+# Write the scaled data to a new xlsx file
+write.xlsx(scaled_data, file = "scaled_data.xlsx", row.names = FALSE)
+
+
+```
+
