@@ -1,6 +1,7 @@
 ---
 title: "clustered_heatmap"
 output: html_document
+author: Krifa Sallouha
 date: "2024-04-22"
 ---
 
@@ -9,8 +10,9 @@ date: "2024-04-22"
 library(cluster)
 library(readxl)
 library(pheatmap)
-library(ggplot2)
+```
 
+```{r setup, include=FALSE}
 # Define the working directory and file path
 WORKING_DIR <- "  "
 file_path <- file.path(WORKING_DIR, " .xlsx")
@@ -21,7 +23,6 @@ p_value_data <- as.data.frame(p_value_data)
 
 # Set gene labels as row names
 p_value_data$unique_id <- make.unique(as.character(p_value_data$fly_gene))
-
 
 row.names(p_value_data) <- p_value_data$unique_id
 
