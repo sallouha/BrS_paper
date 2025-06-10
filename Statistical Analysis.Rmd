@@ -43,7 +43,7 @@ library(rstatix)
 rawdata_folder <- selectDirectory(caption="Select Folder with rawdata files", label = "rawdata files")
 setwd(rawdata_folder)
 
-# Reading raw data
+# Reading raw data (normalized_data)
 filelist <- NULL
 filelist$csv <- list.files(".", pattern = "\\.csv$", recursive = TRUE)
 total <- length(filelist$csv)
@@ -58,7 +58,6 @@ for(f in 1:total){
 }
 all_data <- rbindlist(datalist)
 
-age_list <- unique(all_data$Age)
 date_list <- unique(all_data$cxd_date)
 condition_list <- unique(all_data$CODE)
 
@@ -66,78 +65,11 @@ condition_list <- unique(all_data$CODE)
 # Adding the replicate number for each age/genotype - will be used for the batch effect removal
 cxd_files <- unlist(all_data$cxd_file)
 all_data <- all_data[, cxd_date:=as.Date(mdy(str_extract(cxd_files, "[:digit:]{6}"))),]
-#the first date is replicate 1, second replicate 2 and third replicate 3
 
 ##DATA SELECTION
 all_data_good_parameters <- all_data %>% select(all_of(c("CODE", "type","fly_gene", "Age", "EDD", "ESD", "FS", "HP_median", "DI_median", "relaxtime", "SI_median", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")))
 all_data_good_parameters$AgeFactor <- factor(all_data_good_parameters$Age)
 
-```
-
-```{r outlier treatment, include=FALSE}
-
-##OUTLIER TREATMENT
-for(age in age_list){
-  for(condition in condition_list){
-    outlier_val <- boxplot.stats(all_data_good_parameters$EDD[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$EDD[all_data_good_parameters$EDD == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$ESD[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$ESD[all_data_good_parameters$ESD == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$FS[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$FS[all_data_good_parameters$FS == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$tt10r_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$tt10r_median[all_data_good_parameters$tt10r_median == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_tt10r[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$MAD_tt10r[all_data_good_parameters$MAD_tt10r == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$SV[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$SV[all_data_good_parameters$SV == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$CO[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$CO[all_data_good_parameters$CO == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$peaked_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$peaked_median[all_data_good_parameters$peaked_median == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$min.velocity[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$min.velocity[all_data_good_parameters$min.velocity == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$max.velocity[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$max.velocity[all_data_good_parameters$max.velocity == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_SI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$MAD_SI[all_data_good_parameters$MAD_SI == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_DI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$MAD_DI[all_data_good_parameters$MAD_DI == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$MAD_HP[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$MAD_HP[all_data_good_parameters$MAD_HP == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$HR[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$HR[all_data_good_parameters$HR == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$HP_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$HP_median[all_data_good_parameters$HP_median == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$DI_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$DI_median[all_data_good_parameters$DI_median == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$relaxtime[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$relaxtime[all_data_good_parameters$relaxtime == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$SI_median[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$SI_median[all_data_good_parameters$SI_median == outlier_val] <- NA}
-    outlier_val <- boxplot.stats(all_data_good_parameters$AI[which(all_data_good_parameters$Age==age & all_data_good_parameters$CODE==condition)])$out
-    if(length(outlier_val)!=0){
-      all_data_good_parameters$AI[all_data_good_parameters$AI == outlier_val] <- NA}
-    }
-  }
 ```
 
 ```{r plot function, include=FALSE}
