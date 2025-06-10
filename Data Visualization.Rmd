@@ -8,13 +8,7 @@ date: "2024-04-22"
 ```{r setup, include=FALSE}
 library(cluster)
 library(readxl)
-
-```
-
-```{r data setup, echo=TRUE}
-# Load necessary libraries
 library(pheatmap)
-library(readxl)
 library(ggplot2)
 
 # Define the working directory and file path
