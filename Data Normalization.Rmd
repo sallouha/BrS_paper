@@ -1,5 +1,5 @@
 ---
-title: "standarisation"
+title: "Normalization to Control Group"
 author: Krifa Sallouha
 output:
   html_document:
@@ -13,94 +13,81 @@ params:
   experiments: "101695,102995,106350,106919" 
 ---
 # Initiation
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-#NB A CHANGER :
-library(dplyr)
-library(readxl)
-library(ggpubr)
-library(ggsignif)
-library(rstudioapi)
-library(data.table)
-library(stringr)
-library(lubridate)
-library(grid)
-library(ggplot2)
-library(reshape2)
-library(tidyr)
-library(WRS2)
-library(svDialogs)
-library(kableExtra)
-library(xlsx)
-library(rstatix)
-
+library(dplyr)        
+library(data.table)    
+library(stringr)      
+library(lubridate) 
+library(openxlsx)      
+library(svDialogs)   
 ```
 
 
 ```{r data setup, include=TRUE}
-##GET THE ORIGINAL FILES
-rawdata_folder <- selectDirectory(caption="Select Folder with rawdata files", label = "rawdata files")
+
+# Prompt user to select folder containing raw .csv files
+rawdata_folder <- selectDirectory(caption = "Select Folder with rawdata files", label = "rawdata files")
 setwd(rawdata_folder)
 
-# Reading raw data
+# List all .csv files
 filelist <- NULL
 filelist$csv <- list.files(".", pattern = "\\.csv$", recursive = TRUE)
 total <- length(filelist$csv)
 if(total == 0) stop("THERE IS NO CSV FILES IN THE CURRENT LOCATION.")
 
-# Combining data from xlsx files
+# Read all CSV files and merge into one data table
 datalist <- list()
 for(f in 1:total){
-  # Loading each file in a different data frame
   dataframe <- read.csv(filelist$csv[f])
   datalist[[f]] <- dataframe
 }
 all_data <- rbindlist(datalist)
 
-age_list <- unique(all_data$Age)
-date_list <- unique(all_data$cxd_date)
-condition_list <- unique(all_data$CODE)
-
-
-# Adding the replicate number for each age/genotype - will be used for the batch effect removal
+# Extract replicate date from filename (format: yymmdd)
 cxd_files <- unlist(all_data$cxd_file)
-all_data <- all_data[, cxd_date:=as.Date(mdy(str_extract(cxd_files, "[:digit:]{6}"))),]
-#the first date is replicate 1, second replicate 2 and third replicate 3
+all_data <- all_data[, cxd_date := as.Date(mdy(str_extract(cxd_files, "[:digit:]{6}")))]
 
+# Define parameter list to normalize
+parameters <- c("EDD", "ESD", "FS", "HP_median", "DI_median", "relaxtime", "SI_median", 
+                "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", 
+                "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")
 
-#List of parameters to test 
-parameters <- c("EDD", "ESD", "FS", "HP_median", "DI_median", "relaxtime", "SI_median", "AI", "SV", "CO", "peaked_median", "min.velocity", "max.velocity", "MAD_SI", "MAD_DI", "MAD_HP", "tt10r_median", "MAD_tt10r")
+condition_list <- unique(all_data$CODE)
+control_code <- params$control
+experiment_codes <- unlist(strsplit(params$experiments, ","))
 
+# Subset data: control group and experiment groups
+control <- all_data %>%
+  filter(CODE == control_code)
 
+experiments <- all_data %>%
+  filter(CODE %in% experiment_codes)
+```
+# # Normalize each parameter in both control and experimental data using control mean
 
- control <- all_data %>%
-  filter(CODE %in% condition_list, CODE == "60100")
+```{r , include=TRUE}
 
- experiments <- all_data %>%
-  filter(CODE %in% c("101505","101903","108134"))
-
+# Compute mean of each parameter in the control group
 control_mean <- apply(select(control, all_of(parameters)), 2, mean, na.rm = TRUE)
 
-
 for (param in parameters) {
-  param_data <- experiments[[param]]
   if (param %in% colnames(control)) {
-    control_param_data <- control[[param]]
-    scaled_param <- param_data  / control_mean[param]
-    scaled_param_control <- control_param_data / control_mean[param]
-    experiments[[param]] <- as.vector(scaled_param)
-    control[[param]] <- as.vector(scaled_param_control)
+    # Scale experimental values
+    experiments[[param]] <- experiments[[param]] / control_mean[param]
+    
+    # Scale control values
+    control[[param]] <- control[[param]] / control_mean[param]
   }
 }
 
-scaled_data <- rbind(control, experiments)
 
-# Write the scaled data to a new CSV file
-write.csv(scaled_data, file = "scaled_data.csv", row.names = FALSE)
+normalized_data <- rbind(control, experiments)
 
-# Write the scaled data to a new xlsx file
-write.xlsx(scaled_data, file = "scaled_data.xlsx", row.names = FALSE)
-
+# Export scaled data to CSV and Excel
+write.csv(normalized_data, file = "normalized_data.csv", row.names = FALSE)
+write.xlsx(normalized_data, file = "normalized_data.xlsx", row.names = FALSE)
 
 ```
 
