@@ -14,27 +14,17 @@ params:
 ---
 
 # Initiation
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 # Load all necessary R packages
 library(dplyr)
-library(readxl)
-library(ggpubr)
-library(ggsignif)
-library(rstudioapi)
 library(data.table)
 library(stringr)
 library(lubridate)
-library(grid)
-library(ggplot2)
-library(reshape2)
-library(tidyr)
-library(WRS2)
+library(openxlsx)
 library(svDialogs)
 library(kableExtra)
-library(xlsx)
-library(rstatix)
-library(openxlsx) 
 
 ```
 
