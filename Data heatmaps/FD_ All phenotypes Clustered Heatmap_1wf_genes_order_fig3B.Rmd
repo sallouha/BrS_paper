@@ -8,9 +8,10 @@ date: "2025-02-18"
 
 library(pheatmap)
 library(readxl)
+library(svDialogs) 
 
 # Define the working directory and file path
-WORKING_DIR <- "/Users/arquier/Desktop/Brugada Paper/march" # Set the directory where the data file is located
+WORKING_DIR <- svDialogs::dlg_dir(title = "Select the folder containing the Excel file")$res
 file_path <- file.path(WORKING_DIR, "All_phenotypes_1wm_1wf_fold_change_table_adjusted_for_clustered_heatmap_sheets.xlsx") # Define the path to the Excel file
 
 sheet_name <-"ALL_1wf"
