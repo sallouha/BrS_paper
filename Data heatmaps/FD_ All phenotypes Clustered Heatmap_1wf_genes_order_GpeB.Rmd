@@ -1,0 +1,96 @@
+---
+title: "clustered_heatmap_1wf"
+output: html_document
+date: "2025-02-18"
+---
+
+```{r data setup, echo=TRUE}
+
+library(pheatmap)
+library(readxl)
+
+# Define the working directory and file path
+WORKING_DIR <- "/Users/arquier/Desktop/Brugada Paper/march" # Set the directory where the data file is located
+file_path <- file.path(WORKING_DIR, "All_phenotypes_1wm_1wf_fold_change_table_adjusted_for_clustered_heatmap_sheets.xlsx") # Define the path to the Excel file
+
+sheet_name <-"ALL_1wm"
+p_value_data <- read_excel(file_path, sheet = sheet_name)
+p_value_data <- as.data.frame(p_value_data)
+
+
+# Set gene labels as row names
+p_value_data$unique_id <- make.unique(as.character(p_value_data$fly_gene))
+row.names(p_value_data) <- p_value_data$unique_id # Assign unique gene names as row names
+
+# Prepare phenotype data by selecting 
+phenotype_data <- p_value_data[, c("fold_change_EDD", "fold_change_ESD", "fold_change_FS", 
+                                   "fold_change_AI","fold_change_MAD_HP","fold_change_MAD_SI", "fold_change_MAD_DI", "fold_change_HP_median", "fold_change_SI_median" ,"fold_change_DI_median")]
+
+# Prepare significance index data 
+significance_index_data <- p_value_data[, c("Significance_Index_EDD", "Significance_Index_ESD", "Significance_Index_FS", 
+                                            "Significance_Index_AI","Significance_Index_MAD_HP", "Significance_Index_MAD_SI", "Significance_Index_MAD_DI","Significance_Index_HP_median", "Significance_Index_SI_median","Significance_Index_DI_median")]
+
+# Replace 'NS' (Non-Significant) values with an empty string for better visualization
+significance_index_data[] <- lapply(significance_index_data, function(x) {
+    x <- as.character(x)
+    x[x == "NS"] <- ""  # Replace 'NS' with an empty string
+    x  # Return the modified data
+})
+
+# Convert the phenotype_data to numeric
+phenotype_data[] <- lapply(phenotype_data, function(x) as.numeric(as.character(x)))
+
+# Update column names to be more readable
+colnames(phenotype_data) <- c("EDD", "ESD", "FS", "AI", "MAD_HP", "MAD_SI", "MAD_DI","HP_median", "SI_median", "DI_median" )
+
+# Define parameters and their groupings
+parameters <- c("EDD", "ESD", "FS", "AI", "MAD_HP", "MAD_SI", "MAD_DI","HP_median", "SI_median", "DI_median")
+cardiac_phenotypes_type <- c("Structure", "Structure", "Structure", "Rhythm","Rhythm","Rhythm","Rhythm","Rhythm","Rhythm","Rhythm")
+param_annotation <- data.frame(cardiac_phenotypes_type = factor(cardiac_phenotypes_type, levels = c("Structure","Rhythm")))
+rownames(param_annotation) <- parameters
+annotation_colors <- list(cardiac_phenotypes_type = c("Structure" = "lightgreen", "Rhythm" = "plum1"))
+
+# Determine maximum value for scaling
+max_val <- max(phenotype_data, na.rm = TRUE)
+
+# Create breaks and corresponding colors
+breaks <- c(seq(0.3, 0.9999999999999, length.out = 101), seq(1, max_val, length.out = 100))
+colors <- c(colorRampPalette(c("blue", "white"))(101), colorRampPalette(c("white", "red"))(100))
+
+# Define manual gene order
+gene_order <- c("put_KK (ACVR2B)", "put_TRIP (ACVR2B)", "mtd_GD (NCOA7)", "mtd_TRIP (NCOA7)", "Rnf146_GD (RNF146)", "Rnf146_TRIP (RNF146)", "para_KK (SCN10A)", "para_GD (SCN10A)")
+
+# Reorder phenotype data and significance index data according to manual order
+phenotype_data <- phenotype_data[match(gene_order, rownames(phenotype_data)), ]
+significance_index_data <- significance_index_data[match(gene_order, rownames(significance_index_data)), ]
+
+# Save the heatmap as PNG
+png("Gene KD Expression Effect Patterns Across All Parameters 1wm_GpeB.png", width = 5000, height = 9000, res = 300) # Adjust (width + height) to control the size of the heatmap image.
+
+pheatmap(
+  as.matrix(phenotype_data),
+  display_numbers = as.matrix(significance_index_data),  # Transposed significance index data
+  clustering_distance_rows = "euclidean",
+  clustering_distance_cols = "euclidean",
+  cluster_rows = FALSE,  # change these to TRUE if you want a clustered heatmap but you will lose the gene order 
+  cluster_cols = FALSE,
+  annotation_col  = param_annotation,
+  annotation_colors = annotation_colors,
+  treeheight_col = 60,
+  treeheight_row =  150,
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  fontsize_row = 13,
+  fontsize_col = 15,
+  cellheight = 30,
+  cellwidth = 30,
+  fontsize_number = 10,
+  breaks = breaks,
+  color = colors,
+  number_color = "black",
+  main = "Gene KD Expression Effect Patterns Across All Parameters 1wm"
+)
+dev.off()
+
+
+```
