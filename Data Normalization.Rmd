@@ -12,6 +12,7 @@ params:
   control: "60100"
   experiments: "101695,102995,106350,106919" 
 ---
+
 # Initiation
 
 ```{r setup, include=FALSE}
@@ -64,8 +65,9 @@ control <- all_data %>%
 
 experiments <- all_data %>%
   filter(CODE %in% experiment_codes)
+
 ```
-# # Normalize each parameter in both control and experimental data using control mean
+# Normalize each parameter in both control and experimental data using control mean
 
 ```{r , include=TRUE}
 
