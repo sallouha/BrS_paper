@@ -2,7 +2,7 @@
 title: "Normalization to Control Group"
 author: Krifa Sallouha
 output:
-  html_document:
+  html_document: 
     toc: yes
     toc_float: yes
   word_document:
