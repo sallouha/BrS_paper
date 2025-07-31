@@ -5,16 +5,18 @@ date: "2023-08-22"
 ---
 
 ```{r setup, include=FALSE}
+library(svDialogs) 
 library(cluster)
 library(readxl)
 library(ggplot2)
 library(ggrepel)
+
 ```
 
 ```{r data setup, echo=TRUE}
 
 # Set working directory to the path containing the data files
-WORKING_DIR <- "C:/Users/krifa/Desktop/Analyse/Droso_Brs/Nantes Validations_Second_contrat/volcano_plots/ALL/1WM"
+WORKING_DIR <- svDialogs::dlg_dir(title = "Select the folder containing the Excel file")$res
 
 # Load the data from an Excel file
 p_value_data <- read_excel("ALL_1wm_volcano plot_df.xlsx")
